@@ -2,22 +2,26 @@ random_seed: 42
 
 input_encoding:
   class: !!python/name:museflow.encodings.PianoRollEncoding
-  binarize: True
+  normalize: True
   sampling_frequency: 4  # 4 samples per beat  (tempo is forced to 60 BPM)
 output_encoding:
   class: !!python/name:groove2groove.beat_relative_encoding.BeatRelativeEncoding
-  use_velocity: False
+  use_velocity: True
+  velocity_unit: 16
   units_per_beat: 12
   use_all_off_event: True
   use_drum_events: True
 
-normalize_velocity: null
+normalize_velocity:
+  mean: 64.25399574283072
+  variance: 432.9165195560093
+  # computed on the training set; ignored by default (unless run() is called with normalize_velocity=True)
 
 model:
   encoder_cnn:
     2d_layers:
       - class: !!python/name:tensorflow.layers.Conv2D
-        filters: 32
+        filters: 16
         kernel_size: [12,12]
         padding: same
         activation: !!python/name:tensorflow.nn.elu
@@ -25,7 +29,7 @@ model:
         pool_size: [2,2]
         strides: [2,2]
       - class: !!python/name:tensorflow.layers.Conv2D
-        filters: 32
+        filters: 16
         kernel_size: [4,4]
         padding: same
         activation: !!python/name:tensorflow.nn.elu
@@ -34,27 +38,20 @@ model:
         strides: [2,4]
   encoder_rnn:
     forward_cell:
-      num_units: 200
+      num_units: 100 # changes hidden layer and output size of encoder rnn
   style_encoder_cnn:
     1d_layers:
       - class: !!python/name:tensorflow.layers.Conv1D
-        filters: 300
+        filters: 20
         kernel_size: 6
         padding: same
         activation: !!python/name:tensorflow.nn.elu
       - class: !!python/name:tensorflow.layers.MaxPooling1D
         pool_size: 2
         strides: 2
+      # removed a convolutional layer here.
       - class: !!python/name:tensorflow.layers.Conv1D
-        filters: 300
-        kernel_size: 4
-        padding: same
-        activation: !!python/name:tensorflow.nn.elu
-      - class: !!python/name:tensorflow.layers.MaxPooling1D
-        pool_size: 2
-        strides: 2
-      - class: !!python/name:tensorflow.layers.Conv1D
-        filters: 300
+        filters: 20
         kernel_size: 4
         padding: same
         activation: !!python/name:tensorflow.nn.elu
@@ -63,15 +60,15 @@ model:
         strides: 2
   style_encoder_rnn:
     forward_cell:
-      num_units: 500
+      num_units: 50
   attention_mechanism:
     class: !!python/name:tensorflow.contrib.seq2seq.BahdanauAttention
-    num_units: 300
+    num_units: 50
   embedding_layer:
-    output_size: 300
+    output_size: 30
   decoder:
     cell:
-      num_units: 1024
+      num_units: 30
     max_length: 5000  # for inference only
 
   training:
@@ -83,8 +80,8 @@ model:
     max_gradient_norm: 0.001
 
 trainer:
-  logging_period: 50
-  validation_period: 800
+  logging_period: 10
+  validation_period: 100
 
 train_data:
   source_db_path: data/synth/train/final/shuf/all_except_drums.db
@@ -108,9 +105,9 @@ style_note_filters:
     instrument_re: "^BB Drums$"
 
 data_prep:
-  num_epochs: 1
-  num_train_examples: 1559098  # 1/2 epoch
-  train_batch_size: 64
+  num_epochs: 10
+  num_train_examples: 500 
+  train_batch_size: 16
   val_batch_size: 128
   shuffle_buffer_size: 2000
 max_target_length: 300

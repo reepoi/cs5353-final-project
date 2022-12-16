@@ -90,11 +90,11 @@ trainer:
   validation_period: 800
 
 train_data:
-  db_path: ../data/synth/train/final/shuf/all_except_drums.db
-  metadata_path: ../data/synth/train/final/shuf/meta.json.gz
+  db_path: data/synth/train/final/shuf/all_except_drums.db
+  metadata_path: data/synth/train/final/shuf/meta.json.gz
 val_data:
-  db_path: ../data/synth/val/final/all_except_drums.db
-  metadata_path: ../data/synth/val/final/meta.json.gz
+  db_path: data/synth/val/final/all_except_drums.db
+  metadata_path: data/synth/val/final/meta.json.gz
 
 style_note_filters:
   Bass:
