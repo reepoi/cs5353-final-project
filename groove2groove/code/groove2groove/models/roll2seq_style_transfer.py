@@ -17,7 +17,7 @@ from museflow.trainer import BasicTrainer
 from note_seq.protobuf import music_pb2
 
 from groove2groove.io import EvalPipeline, MidiPipeline, TrainLoader
-from groove2groove.models.common import CNN
+from groove2groove.models.common import CNN, CNNVAE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,13 +33,17 @@ class Model:
 
         inputs, style_inputs, decoder_inputs, decoder_targets = self.dataset_manager.get_next()
 
-        cnn = self._cfg['encoder_cnn'].configure(CNN,
+        cnn_to_use = CNNVAE if self._cfg['use_cnn_vae'] else CNN
+        cnn = self._cfg['encoder_cnn'].configure(cnn_to_use,
                                                  training=self._is_training,
                                                  name='encoder_cnn')
+        import pdb
+        pdb.set_trace()
         rnn = self._cfg['encoder_rnn'].configure(RNNLayer,
                                                  training=self._is_training,
                                                  name='encoder_rnn')
-        encoder_states, _ = rnn(cnn(inputs))
+        features, statistics, reparameterize = cnn(inputs)
+        encoder_states, _ = rnn(features)
 
         embeddings = self._cfg['embedding_layer'].configure(EmbeddingLayer,
                                                             input_size=len(vocabulary),
@@ -76,10 +80,24 @@ class Model:
                                                       training=self._is_training,
                                                       cell_wrap_fn=cell_wrap_fn)
 
+        def log_normal_pdf(sample, mean, logvar, raxis=1):
+          log2pi = tf.math.log(2. * np.pi)
+          return tf.reduce_sum(
+              -.5 * ((sample - mean) ** 2. * tf.exp(-logvar) + logvar + log2pi),
+              axis=raxis)
+
+        def our_loss(stats, reparameterize):
+            mean, logvar = stats
+            z = reparameterize
+            logpz = log_normal_pdf(z, 0.0, 0.0)
+            logqz_x = log_normal_pdf(z, mean, logvar)
+            return -tf.reduce_mean(logpz - logqz_x)
+
         # Build the training version of the decoder and the training ops
         self.training_ops = None
         if train_mode:
             _, self.loss = self.decoder.decode_train(decoder_inputs, decoder_targets)
+            self.loss += our_loss(statistics, reparameterize)
             self.training_ops = self._make_train_ops()
 
         # Build the sampling and greedy version of the decoder
